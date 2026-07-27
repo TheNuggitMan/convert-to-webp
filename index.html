@@ -212,6 +212,7 @@
 
     <!-- Controls -->
     <div class="controls">
+        <button id="clearAllBtn" class="secondary" disabled>Clear All Converted</button>
         <button id="downloadAllBtn" class="secondary" disabled>Download All as ZIP</button>
     </div>
 
@@ -224,6 +225,7 @@
     const fileInput = document.getElementById('fileInput');
     const fileListEl = document.getElementById('fileList');
     const downloadAllBtn = document.getElementById('downloadAllBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
 
     // Store for ZIP
     let convertedFiles = []; 
@@ -251,6 +253,7 @@
     });
 
     downloadAllBtn.addEventListener('click', downloadAllAsZip);
+    clearAllBtn.addEventListener('click', clearAll);
 
     function handleFiles(files) {
         const validTypes = ['image/jpeg', 'image/png', 'image/jpg'];
@@ -340,9 +343,10 @@
                     blob: blob
                 });
 
-                // Enable "Download All" if it's the first file
+                // Enable Buttons if file uploaded
                 if (convertedFiles.length === 1) {
                     downloadAllBtn.disabled = false;
+                    clearAllBtn.disabled = false;
                 }
 
             }, 'image/webp', 1.0); // 1.0 = Highest Quality
@@ -386,6 +390,16 @@
             downloadAllBtn.textContent = originalText;
             downloadAllBtn.disabled = false;
         }
+    }
+    function clearAll() {
+        convertedFiles = [];
+        let convertedList = document.querySelectorAll('.file-item');
+        convertedList.forEach(file => {
+            file.remove();
+        });
+
+        downloadAllBtn.disabled = true;
+        clearAllBtn.disabled = true;
     }
 </script>
 
