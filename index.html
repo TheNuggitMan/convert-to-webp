@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image to WebP Converter</title>
+    <!-- JSZip for creating the ZIP file -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --text: #1e293b;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: var(--surface);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+
+        p.subtitle {
+            text-align: center;
+            color: #64748b;
+            margin-bottom: 2rem;
+        }
+
+        /* Drop Zone */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            padding: 3rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background-color: #fafafa;
+        }
+
+        .drop-zone.drag-over {
+            border-color: var(--primary);
+            background-color: #eff6ff;
+            transform: scale(1.01);
+        }
+
+        .drop-zone p {
+            margin: 0;
+            font-size: 1.1rem;
+            color: #64748b;
+        }
+
+        .drop-zone strong {
+            color: var(--primary);
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        /* Controls */
+        .controls {
+            margin-top: 1.5rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+            min-height: 40px;
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-size: 0.95rem;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button:disabled {
+            background-color: #cbd5e1;
+            cursor: not-allowed;
+        }
+
+        button.secondary {
+            background-color: white;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        button.secondary:hover {
+            background-color: #f1f5f9;
+        }
+
+        /* File List */
+        .file-list {
+            margin-top: 2rem;
+            display: grid;
+            gap: 1rem;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .preview-thumb {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            background: #eee;
+        }
+
+        .file-details {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .file-name {
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-status {
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-left: 1rem;
+        }
+
+        .btn-sm {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.85rem;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+        .status-pending { background: #f1f5f9; color: #64748b; }
+        .status-done { background: #dcfce7; color: #166534; }
+        .status-error { background: #fee2e2; color: #991b1b; }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Image to WebP Converter</h1>
+    <p class="subtitle">Convert JPG & PNG to high-quality WebP instantly in your browser.</p>
+
+    <!-- Drop Zone -->
+    <div class="drop-zone" id="dropZone">
+        <p>Drag & drop images here or <strong>click to upload</strong></p>
+        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Supports .jpg, .jpeg, .png</p>
+        <input type="file" id="fileInput" multiple accept="image/jpeg, image/png, image/jpg">
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+        <button id="downloadAllBtn" class="secondary" disabled>Download All as ZIP</button>
+    </div>
+
+    <!-- List -->
+    <div class="file-list" id="fileList"></div>
+</div>
+
+<script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileListEl = document.getElementById('fileList');
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+
+    // Store for ZIP
+    let convertedFiles = []; 
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('drag-over');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+        handleFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        handleFiles(e.target.files);
+        fileInput.value = ''; 
+    });
+
+    downloadAllBtn.addEventListener('click', downloadAllAsZip);
+
+    function handleFiles(files) {
+        const validTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+        
+        Array.from(files).forEach(file => {
+            if (!validTypes.includes(file.type)) {
+                alert(`Skipping ${file.name}: Unsupported format. Please use JPG or PNG.`);
+                return;
+            }
+            createFileItem(file);
+        });
+    }
+
+    function createFileItem(file) {
+        const id = Math.random().toString(36).substr(2, 9);
+        const item = document.createElement('div');
+        item.className = 'file-item';
+        item.id = `item-${id}`;
+
+        item.innerHTML = `
+            <div class="file-info">
+                <img class="preview-thumb" src="" alt="preview">
+                <div class="file-details">
+                    <span class="file-name">${file.name}</span>
+                    <span class="file-status">Processing...</span>
+                </div>
+            </div>
+            <div class="file-actions">
+                <button class="btn-sm secondary" disabled id="dl-${id}">Download</button>
+            </div>
+        `;
+        
+        fileListEl.appendChild(item);
+
+        // Preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            item.querySelector('.preview-thumb').src = e.target.result;
+            convertImage(file, id);
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function convertImage(file, id) {
+        const img = new Image();
+        const item = document.getElementById(`item-${id}`);
+        const statusEl = item.querySelector('.file-status');
+        const dlBtn = document.getElementById(`dl-${id}`);
+
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+
+            canvas.toBlob((blob) => {
+                if (!blob) {
+                    statusEl.textContent = "Conversion failed";
+                    statusEl.className = "file-status status-error";
+                    return;
+                }
+
+                const newFileName = file.name.replace(/\.(jpg|jpeg|png)$/i, '.webp');
+                
+                // Update UI
+                statusEl.textContent = "Done";
+                statusEl.className = "file-status status-done";
+                dlBtn.disabled = false;
+                dlBtn.textContent = "Download";
+                
+                // Setup Individual Download
+                dlBtn.onclick = () => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = newFileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                };
+
+                // Store for ZIP
+                convertedFiles.push({
+                    name: newFileName,
+                    blob: blob
+                });
+
+                // Enable "Download All" if it's the first file
+                if (convertedFiles.length === 1) {
+                    downloadAllBtn.disabled = false;
+                }
+
+            }, 'image/webp', 1.0); // 1.0 = Highest Quality
+        };
+
+        img.onerror = () => {
+            statusEl.textContent = "Error loading image";
+            statusEl.className = "file-status status-error";
+        };
+
+        img.src = URL.createObjectURL(file);
+    }
+
+    async function downloadAllAsZip() {
+        if (convertedFiles.length === 0) return;
+
+        const originalText = downloadAllBtn.textContent;
+        downloadAllBtn.textContent = "Zipping...";
+        downloadAllBtn.disabled = true;
+
+        const zip = new JSZip();
+        
+        convertedFiles.forEach(file => {
+            zip.file(file.name, file.blob);
+        });
+
+        try {
+            const content = await zip.generateAsync({ type: "blob" });
+            const url = URL.createObjectURL(content);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "converted-images.zip";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            alert("Error creating ZIP file");
+            console.error(err);
+        } finally {
+            downloadAllBtn.textContent = originalText;
+            downloadAllBtn.disabled = false;
+        }
+    }
+</script>
+
+</body>
+</html>
